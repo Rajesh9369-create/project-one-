@@ -1,15 +1,18 @@
 {
-  "version": "v1-demo-2026-09-02",
+  "version": "v1.1-2026-09-02",
   "sources": {
     "asc_farm_v1": "https://programme-centre.asc-aqua.org/farm-v1/farm-standard/",
-    "cea_v19": "https://cea.nic.in/cdm-co2-baseline-database/"
+    "cea_v21": "https://cea.nic.in/cdm-co2-baseline-database/"
   },
   "electricity": {
     "india_grid_weighted_average": {
-      "value": 0.716,
+      "value": 0.7117,
       "unit": "kgCO2/kWh",
-      "source": "CEA CO2 Baseline Database, Version 19; FY2022-23 weighted-average grid emission factor",
-      "source_url": "https://cea.nic.in/cdm-co2-baseline-database/"
+      "source": "CEA CO2 Baseline Database Version 21.0; FY2024-25 weighted-average grid emission rate including renewable energy and captive generation, excluding imports",
+      "source_url": "https://cea.nic.in/cdm-co2-baseline-database/",
+      "reporting_year": "FY2024-25",
+      "version": "21.0",
+      "note": "Use the factor applicable to the reporting period and disclose the selected CEA variant. This V1 registry uses the all-India weighted-average grid rate for location-based Scope 2 estimation."
     }
   },
   "diesel": {
