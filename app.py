@@ -87,8 +87,23 @@ if st.button("Calculate carbon footprint", type="primary"):
         rows = [{"Source": a.name, "Scope": a.scope, "kg CO₂e": round(a.kg_co2e, 3), "Factor": a.factor, "Unit": a.factor_unit, "Factor source": a.source} for a in result["activities"]]
         st.subheader("Auditable emissions ledger")
         st.dataframe(rows, use_container_width=True, hide_index=True)
+
+        st.subheader("4. Priority interventions")
+        st.caption("Recommendations are standards-aligned management actions based on measured hotspots. They are not certification findings and do not guarantee a specific CO₂e reduction.")
+        for item in result["interventions"]:
+            share = item["hotspot_share"] * 100
+            title = f"P{item['priority']} — {item['area']}"
+            with st.expander(title, expanded=item["priority"] <= 2):
+                if item["area"] != "GHG management plan & verification":
+                    st.metric("Measured footprint share", f"{share:.1f}%")
+                st.write("**Recommended action:** " + item["action"])
+                st.write("**Why:** " + item["why"])
+                st.caption("Standard basis: " + item["standard_basis"])
+
         if not result["complete"]:
             st.error("INCOMPLETE ACCOUNTING: a documented feed and/or transport emission factor is missing. Do not use this result for certification, customer disclosure or carbon-credit claims.")
+        else:
+            st.info("Calculation complete means the required factors were supplied; source documents and factor boundaries still require verification before external reporting.")
         st.info("Aeration and refrigeration are treated as energy-consuming activities under electricity when their consumption is already included in the electricity total. This prevents double counting.")
     except ValueError as exc:
         st.error(str(exc))
