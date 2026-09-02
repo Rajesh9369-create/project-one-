@@ -1,2 +1,5 @@
 streamlit>=1.40,<2
 pytest>=8,<9
+pdfplumber>=0.11,<1
+Pillow>=10,<12
+pytesseract>=0.3.13,<1
