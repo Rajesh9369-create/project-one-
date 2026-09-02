@@ -1,0 +1,33 @@
+{
+  "version": "v1-demo-2026-09-02",
+  "sources": {
+    "asc_farm_v1": "https://programme-centre.asc-aqua.org/farm-v1/farm-standard/",
+    "cea_v19": "https://cea.nic.in/cdm-co2-baseline-database/"
+  },
+  "electricity": {
+    "india_grid_weighted_average": {
+      "value": 0.716,
+      "unit": "kgCO2/kWh",
+      "source": "CEA CO2 Baseline Database, Version 19; FY2022-23 weighted-average grid emission factor",
+      "source_url": "https://cea.nic.in/cdm-co2-baseline-database/"
+    }
+  },
+  "diesel": {
+    "scope1": {
+      "value": 2.71,
+      "unit": "kgCO2e/L",
+      "source": "ASC Farm Standard v1.0.1A2"
+    },
+    "scope3_upstream": {
+      "value": 0.63,
+      "unit": "kgCO2e/L",
+      "source": "ASC Farm Standard v1.0.1A2"
+    }
+  },
+  "feed": {
+    "note": "No universal default factor. Enter a supplier-specific or documented compatible factor."
+  },
+  "feed_transport": {
+    "note": "Enter a documented transport factor in kgCO2e per tonne-km."
+  }
+}
