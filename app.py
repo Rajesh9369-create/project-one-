@@ -2,18 +2,27 @@ import json
 import streamlit as st
 from calculator import calculate
 from extractor import extract_text, suggest_fields
+from report import generate_farm_report
 
 st.set_page_config(page_title="CoastalCarbon AI", page_icon="🌊", layout="wide")
 
 with open("factors.json", "r", encoding="utf-8") as f:
     factors = json.load(f)
 
+elec_factor_meta = factors["electricity"]["india_grid_weighted_average"]
+
 st.title("🌊 CoastalCarbon AI")
-st.caption("Aqua MSME carbon tracker — documents → reviewed activity data → deterministic carbon calculation")
+st.caption("Aqua MSME carbon tracker — reviewed farm records → deterministic footprint → performance metrics → actions → report")
 
-st.header("1. Upload records")
+st.header("1. Farm & reporting period")
+f1, f2 = st.columns(2)
+with f1:
+    farm_name = st.text_input("Farm name", placeholder="Example: Coastal Shrimp Farm")
+with f2:
+    reporting_period = st.text_input("Reporting period", value="FY2024-25")
+
+st.header("2. Upload records")
 st.write("Upload bills/invoices/records. Extraction is only a suggestion: review every value before calculation.")
-
 doc_types = ["Electricity bill", "Diesel invoice", "Feed invoice", "Production record"]
 files = {}
 cols = st.columns(4)
@@ -23,14 +32,13 @@ for col, dtype in zip(cols, doc_types):
 
 if "extracted" not in st.session_state:
     st.session_state.extracted = {}
-
 if st.button("Extract values from uploaded records"):
     for dtype, uploaded in files.items():
         if uploaded:
             text = extract_text(uploaded)
             st.session_state.extracted[dtype] = {"text": text, "fields": suggest_fields(text, dtype)}
 
-st.header("2. Review extracted data")
+st.header("3. Review extracted data")
 ex = st.session_state.extracted
 if ex:
     for dtype, payload in ex.items():
@@ -46,15 +54,19 @@ if ex:
 else:
     st.info("Upload records above and click Extract. You can also enter values manually below.")
 
-st.header("3. Complete / verify calculation inputs")
+st.header("4. Complete / verify calculation inputs")
 left, right = st.columns(2)
 with left:
-    production_kg = st.number_input("Shrimp production (kg)", min_value=0.0, value=float(st.session_state.get("review_production_kg", 10000.0)), step=100.0)
+    production_kg = st.number_input("Harvested shrimp production (kg)", min_value=0.0, value=float(st.session_state.get("review_production_kg", 10000.0)), step=100.0)
+    initial_biomass_kg = st.number_input("Initial biomass / stocked biomass (kg)", min_value=0.0, value=0.0, step=100.0, help="Required for true FCR. Leave at 0 only if you do not have a defensible initial biomass figure.")
     electricity_kwh = st.number_input("Electricity (kWh)", min_value=0.0, value=float(st.session_state.get("review_electricity_kwh", 12000.0)), step=100.0)
     diesel_litres = st.number_input("Diesel (L)", min_value=0.0, value=float(st.session_state.get("review_diesel_litres", 500.0)), step=10.0)
     feed_kg = st.number_input("Feed used (kg)", min_value=0.0, value=float(st.session_state.get("review_feed_kg", 14000.0)), step=100.0)
 with right:
-    electricity_factor = st.number_input("Grid factor (kg CO₂/kWh)", min_value=0.0, value=float(factors["electricity"]["india_grid_weighted_average"]["value"]), format="%.6f")
+    st.markdown("**CEA electricity factor**")
+    st.metric("Default grid factor", f"{elec_factor_meta['value']:.4f} kg CO₂/kWh")
+    st.caption(f"CEA CO₂ Baseline Database V{elec_factor_meta['version']} · {elec_factor_meta['reporting_year']}")
+    electricity_factor = st.number_input("Grid factor (kg CO₂/kWh)", min_value=0.0, value=float(elec_factor_meta["value"]), format="%.6f")
     diesel_scope1 = st.number_input("Diesel Scope 1 factor (kg CO₂e/L)", min_value=0.0, value=float(factors["diesel"]["scope1"]["value"]), format="%.4f")
     diesel_upstream = st.number_input("Diesel upstream Scope 3 factor (kg CO₂e/L)", min_value=0.0, value=float(factors["diesel"]["scope3_upstream"]["value"]), format="%.4f")
     feed_factor_raw = st.number_input("Feed factor (kg CO₂e/kg feed)", min_value=0.0, value=0.0, step=0.01)
@@ -68,6 +80,7 @@ with t2:
 
 feed_factor = feed_factor_raw if feed_factor_raw > 0 else None
 transport_factor = transport_factor_raw if transport_factor_raw > 0 else None
+initial_for_fcr = initial_biomass_kg if initial_biomass_kg > 0 else None
 
 if st.button("Calculate carbon footprint", type="primary"):
     try:
@@ -76,19 +89,31 @@ if st.button("Calculate carbon footprint", type="primary"):
             diesel_litres, diesel_scope1, diesel_upstream,
             feed_kg, feed_factor, "User-supplied documented feed factor",
             distance_km, transport_factor,
-            factors["electricity"]["india_grid_weighted_average"]["source"],
-            "ASC Farm Standard v1.0.1A2", "User-supplied documented transport factor",
+            elec_factor_meta["source"], "ASC Farm Standard v1.0.1A2", "User-supplied documented transport factor",
+            initial_biomass_kg=initial_for_fcr,
         )
-        m1, m2, m3 = st.columns(3)
+        st.session_state["last_result"] = result
+
+        m1, m2, m3, m4 = st.columns(4)
         m1.metric("Total emissions", f"{result['total_kg_co2e']:,.1f} kg CO₂e")
-        m2.metric("Carbon intensity", f"{result['carbon_intensity_kg_co2e_per_kg']:.3f} kg CO₂e/kg shrimp")
-        m3.metric("Data status", "Complete" if result["complete"] else "INCOMPLETE")
+        m2.metric("Carbon intensity", f"{result['carbon_intensity_kg_co2e_per_kg']:.3f} kg CO₂e/kg")
+        m3.metric("Energy intensity", f"{result['metrics']['energy_intensity_kwh_per_kg']:.3f} kWh/kg")
+        m4.metric("FCR", f"{result['metrics']['fcr']:.3f}" if result['metrics']['fcr'] is not None else "Not available")
+
+        st.subheader("Farm performance metrics")
+        p1, p2, p3, p4 = st.columns(4)
+        p1.metric("FCR", f"{result['metrics']['fcr']:.3f}" if result['metrics']['fcr'] is not None else "Need initial biomass")
+        p2.metric("Feed intensity", f"{result['metrics']['feed_intensity_kg_per_kg']:.3f} kg/kg")
+        p3.metric("Energy intensity", f"{result['metrics']['energy_intensity_kwh_per_kg']:.3f} kWh/kg")
+        p4.metric("Diesel intensity", f"{result['metrics']['diesel_intensity_l_per_kg']:.4f} L/kg")
+        if result['metrics']['fcr'] is None:
+            st.info("FCR is not calculated because a defensible initial biomass value was not supplied. Feed intensity is shown separately and is not FCR.")
 
         rows = [{"Source": a.name, "Scope": a.scope, "kg CO₂e": round(a.kg_co2e, 3), "Factor": a.factor, "Unit": a.factor_unit, "Factor source": a.source} for a in result["activities"]]
         st.subheader("Auditable emissions ledger")
         st.dataframe(rows, use_container_width=True, hide_index=True)
 
-        st.subheader("4. Priority interventions")
+        st.subheader("5. Priority interventions")
         st.caption("Recommendations are standards-aligned management actions based on measured hotspots. They are not certification findings and do not guarantee a specific CO₂e reduction.")
         for item in result["interventions"]:
             share = item["hotspot_share"] * 100
@@ -100,6 +125,10 @@ if st.button("Calculate carbon footprint", type="primary"):
                 st.write("**Why:** " + item["why"])
                 st.caption("Standard basis: " + item["standard_basis"])
 
+        st.subheader("6. Download farm report")
+        pdf_bytes = generate_farm_report(result, farm_name, reporting_period, factors)
+        st.download_button("📄 Download Farm Carbon Assessment (PDF)", data=pdf_bytes, file_name=f"{(farm_name or 'farm').replace(' ', '_')}_carbon_assessment.pdf", mime="application/pdf")
+
         if not result["complete"]:
             st.error("INCOMPLETE ACCOUNTING: a documented feed and/or transport emission factor is missing. Do not use this result for certification, customer disclosure or carbon-credit claims.")
         else:
@@ -110,4 +139,4 @@ if st.button("Calculate carbon footprint", type="primary"):
 
 st.divider()
 st.caption("Factor registry: " + factors["version"])
-st.caption("Always verify factor geography, year/version, system boundary and production boundary before external reporting.")
+st.caption("CEA default: 0.7117 kg CO₂/kWh (V21.0, FY2024-25). Always verify factor geography, year/version, system boundary and production boundary before external reporting.")
